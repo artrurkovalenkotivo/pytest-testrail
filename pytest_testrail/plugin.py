@@ -1,10 +1,10 @@
 # -*- coding: UTF-8 -*-
+import re
+import warnings
 from datetime import datetime
 from operator import itemgetter
 
 import pytest
-import re
-import warnings
 
 # Reference: http://docs.gurock.com/testrail-api2/reference-statuses
 TESTRAIL_TEST_STATUS = {
@@ -44,10 +44,10 @@ warnings.simplefilter(action='once', category=DeprecatedTestDecorator, lineno=0)
 
 
 class pytestrail(object):
-    '''
+    """
     An alternative to using the testrail function as a decorator for test cases, since py.test may confuse it as a test
     function since it has the 'test' prefix
-    '''
+    """
 
     @staticmethod
     def case(*ids):
@@ -81,7 +81,7 @@ def testrail(*ids):
     :return pytest.mark:
     """
     deprecation_msg = ('pytest_testrail: the @testrail decorator is deprecated and will be removed. Please use the '
-            '@pytestrail.case decorator instead.')
+                       '@pytestrail.case decorator instead.')
     warnings.warn(deprecation_msg, DeprecatedTestDecorator)
     return pytestrail.case(*ids)
 
@@ -119,7 +119,7 @@ def clean_test_defects(defect_ids):
         :param list defect_ids: list of defect_ids.
         :return list ints: contains list of defect_ids as ints.
         """
-    return [(re.search('(?P<defect_id>.*)',defect_id).groupdict().get('defect_id')) for defect_id in defect_ids]
+    return [(re.search('(?P<defect_id>.*)', defect_id).groupdict().get('defect_id')) for defect_id in defect_ids]
 
 
 def get_testrail_keys(items):
@@ -139,9 +139,10 @@ def get_testrail_keys(items):
 
 
 class PyTestRailPlugin(object):
-    def __init__(self, client, assign_user_id, project_id, suite_id, include_all, cert_check, tr_name, tr_description='', run_id=0,
+    def __init__(self, client, assign_user_id, project_id, suite_id, include_all, cert_check, tr_name,
+                 tr_description='', run_id=0,
                  plan_id=0, version='', close_on_complete=False, publish_blocked=True, skip_missing=False,
-                 milestone_id=None, custom_comment=None):
+                 milestone_id=None, custom_comment=None, custom_fields=None):
         self.assign_user_id = assign_user_id
         self.cert_check = cert_check
         self.client = client
@@ -159,6 +160,7 @@ class PyTestRailPlugin(object):
         self.skip_missing = skip_missing
         self.milestone_id = milestone_id
         self.custom_comment = custom_comment
+        self.custom_fields = custom_fields
 
     # pytest hooks
 
@@ -216,13 +218,13 @@ class PyTestRailPlugin(object):
         if item.get_closest_marker(TESTRAIL_PREFIX):
             testcaseids = item.get_closest_marker(TESTRAIL_PREFIX).kwargs.get('ids')
             if rep.when == 'call' and testcaseids:
-                if defectids != None:
+                if defectids is not None:
                     self.add_result(
                         clean_test_ids(testcaseids),
                         get_test_outcome(outcome.get_result().outcome),
                         comment=rep.longrepr,
                         duration=rep.duration,
-                        defects=str(clean_test_defects(defectids)).replace('[', '').replace(']', '').replace("'", '')
+                        defects=str(clean_test_defects(defectids)).replace('[', '').replace(']', '').replace("'", ''),
                     )
                 else:
                     self.add_result(
@@ -246,6 +248,7 @@ class PyTestRailPlugin(object):
                 print('[{}] Testruns to update: {}'.format(TESTRAIL_PREFIX, ', '.join([str(elt) for elt in testruns])))
                 for testrun_id in testruns:
                     self.add_results(testrun_id)
+                    self.publish_results(testrun_id)
             else:
                 print('[{}] No data published'.format(TESTRAIL_PREFIX))
 
@@ -269,12 +272,12 @@ class PyTestRailPlugin(object):
         """
         for test_id in test_ids:
             data = {
-                    'case_id': test_id,
-                    'status_id': status,
-                    'comment': comment,
-                    'duration': duration,
-                    'defects': defects
-                }
+                'case_id': test_id,
+                'status_id': status,
+                'comment': comment,
+                'duration': duration,
+                'defects': defects,
+            }
             self.results.append(data)
 
     def add_results(self, testrun_id):
@@ -284,14 +287,10 @@ class PyTestRailPlugin(object):
         :param testrun_id: Id of the testrun to feed
 
         """
-        # unicode converter for compatibility of python 2 and 3
-        try:
-            converter = unicode
-        except NameError:
-            converter = lambda s, c: str(bytes(s, "utf-8"), c)
         # Results are sorted by 'case_id' and by 'status_id' (worst result at the end)
 
-        # Comment sort by status_id due to issue with pytest-rerun failures, for details refer to issue https://github.com/allankp/pytest-testrail/issues/100
+        # Comment sort by status_id due to issue with pytest-rerun failures, for details refer to issue
+        # https://github.com/allankp/pytest-testrail/issues/100
         # self.results.sort(key=itemgetter('status_id'))
         self.results.sort(key=itemgetter('case_id'))
 
@@ -310,6 +309,11 @@ class PyTestRailPlugin(object):
         if self.include_all:
             print('[{}] Option "Include all testcases from test suite for test run" activated'.format(TESTRAIL_PREFIX))
 
+    def __converter(self, input, codepage):
+        # unicode converter for compatibility
+        return str(bytes(input, "utf-8"), codepage)
+
+    def publish_results(self, testrun_id):
         # Publish results
         data = {'results': []}
         for result in self.results:
@@ -323,18 +327,22 @@ class PyTestRailPlugin(object):
                     # Indent text to avoid string formatting by TestRail. Limit size of comment.
                     entry['comment'] += u"# Pytest result: #\n"
                     entry['comment'] += u'Log truncated\n...\n' if len(str(comment)) > COMMENT_SIZE_LIMIT else u''
-                    entry['comment'] += u"    " + converter(str(comment), "utf-8")[-COMMENT_SIZE_LIMIT:].replace('\n', '\n    ')
+                    entry['comment'] += u"    " + self.__converter(str(comment),
+                                                                   "utf-8")[-COMMENT_SIZE_LIMIT:].replace('\n', '\n    ')
                 else:
                     # Indent text to avoid string formatting by TestRail. Limit size of comment.
                     entry['comment'] = u"# Pytest result: #\n"
                     entry['comment'] += u'Log truncated\n...\n' if len(str(comment)) > COMMENT_SIZE_LIMIT else u''
-                    entry['comment'] += u"    " + converter(str(comment), "utf-8")[-COMMENT_SIZE_LIMIT:].replace('\n', '\n    ')
+                    entry['comment'] += u"    " + self.__converter(str(comment),
+                                                                   "utf-8")[-COMMENT_SIZE_LIMIT:].replace('\n', '\n    ')
             elif comment == '':
                 entry['comment'] = self.custom_comment
             duration = result.get('duration')
             if duration:
                 duration = 1 if (duration < 1) else int(round(duration))  # TestRail API doesn't manage milliseconds
                 entry['elapsed'] = str(duration) + 's'
+            if self.custom_fields:
+                entry.update(self.custom_fields)
             data['results'].append(entry)
 
         response = self.client.send_post(
@@ -346,12 +354,28 @@ class PyTestRailPlugin(object):
         if error:
             print('[{}] Info: Testcases not published for following reason: "{}"'.format(TESTRAIL_PREFIX, error))
 
-    def create_test_run(
-            self, assign_user_id, project_id, suite_id, include_all, testrun_name, tr_keys, milestone_id, description=''):
+    def create_test_run(self,
+                        assign_user_id,
+                        project_id,
+                        suite_id,
+                        include_all,
+                        testrun_name,
+                        tr_keys,
+                        milestone_id,
+                        description=''):
         """
         Create testrun with ids collected from markers.
 
         :param tr_keys: collected testrail ids.
+
+        Args:
+            description: str, description of the run
+            milestone_id: int, id of milestone
+            testrun_name: str
+            include_all: bool
+            suite_id: int
+            project_id: int
+            assign_user_id: int
         """
         data = {
             'suite_id': suite_id,
@@ -370,7 +394,10 @@ class PyTestRailPlugin(object):
         )
         error = self.client.get_error(response)
         if error:
-            print('[{}] Failed to create testrun: "{}"'.format(TESTRAIL_PREFIX, error))
+            import pprint
+            pprint.pprint(data)
+            pprint.pprint(ADD_TESTRUN_URL.format(project_id))
+            print('[{}] !!!Failed to create testrun: "{}"'.format(TESTRAIL_PREFIX, error))
         else:
             self.testrun_id = response['id']
             print('[{}] New testrun created with name "{}" and ID={}'.format(TESTRAIL_PREFIX,

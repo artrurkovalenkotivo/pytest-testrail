@@ -1,8 +1,10 @@
 # -*- coding: UTF-8 -*-
 import os
 import sys
+import json
 from .plugin import PyTestRailPlugin
 from .testrail_api import APIClient
+
 if sys.version_info.major == 2:
     # python2
     import ConfigParser as configparser
@@ -54,7 +56,8 @@ def pytest_addoption(parser):
         '--tr-testrun-suite-include-all',
         action='store_true',
         default=None,
-        help='Include all test cases in specified test suite when creating test run (config file: include_all in TESTRUN section)')
+        help='Include all test cases in specified test suite when creating test run (config file:'
+             ' include_all in TESTRUN section)')
     group.addoption(
         '--tr-testrun-name',
         action='store',
@@ -76,7 +79,8 @@ def pytest_addoption(parser):
         action='store',
         default=0,
         required=False,
-        help='Identifier of testplan, that appears in TestRail (config file: plan_id in TESTRUN section). If provided, option "--tr-testrun-name" will be ignored')
+        help='Identifier of testplan, that appears in TestRail (config file: plan_id in TESTRUN section). If provided,'
+             ' option "--tr-testrun-name" will be ignored')
     group.addoption(
         '--tr-version',
         action='store',
@@ -116,7 +120,15 @@ def pytest_addoption(parser):
         action='store',
         default=None,
         required=False,
-        help='Custom comment, to be appended to default comment for test case (config file: custom_comment in TESTCASE section)'
+        help='Custom comment, to be appended to default comment for test case (config file: custom_comment in TESTCASE'
+             ' section)'
+    )
+    group.addoption(
+        '--tc-custom-fields',
+        action='store',
+        default=None,
+        required=False,
+        help='Custom fields, to be appended to test case (config file: TESTCASE section)'
     )
 
 
@@ -148,7 +160,8 @@ def pytest_configure(config):
                 publish_blocked=config.getoption('--tr-dont-publish-blocked'),
                 skip_missing=config.getoption('--tr-skip-missing'),
                 milestone_id=config_manager.getoption('tr-milestone-id', 'milestone_id', 'TESTRUN'),
-                custom_comment=config_manager.getoption('tc-custom-comment', 'custom_comment', 'TESTCASE')
+                custom_comment=config_manager.getoption('tc-custom-comment', 'custom_comment', 'TESTCASE'),
+                custom_fields=config_manager.getoption('tc-custom-fields', 'custom_fields', 'TESTCASE')
             ),
             # Name of plugin instance (allow to be used by other plugins)
             name="pytest-testrail-instance"
@@ -157,15 +170,15 @@ def pytest_configure(config):
 
 class ConfigManager(object):
     def __init__(self, cfg_file_path, config):
-        '''
-        Handles retrieving configuration values. Config options set in flags are given preferance over options set in the
-        config file.
+        """
+        Handles retrieving configuration values. Config options set in flags are given preferance over options set in
+        the config file.
 
         :param cfg_file_path: Path to the config file containing information about the TestRail server.
         :type cfg_file_path: str or None
         :param config: Config object containing commandline flag options.
         :type config: _pytest.config.Config
-        '''
+        """
         self.cfg_file = None
         if os.path.isfile(cfg_file_path) or os.path.islink(cfg_file_path):
             self.cfg_file = configparser.ConfigParser()
@@ -178,7 +191,9 @@ class ConfigManager(object):
 
         # 1. return cli option (if set)
         value = self.config.getoption('--{}'.format(flag))
-        if value is not None:
+        if value is not None and flag == "tc-custom-fields":
+            return json.loads(value)
+        elif value is not None:
             return value
 
         # 2. return default if not config file path is specified
@@ -188,6 +203,11 @@ class ConfigManager(object):
         if self.cfg_file.has_option(section, cfg_name):
             # 3. return config file value
             return self.cfg_file.getboolean(section, cfg_name) if is_bool else self.cfg_file.get(section, cfg_name)
+
+        elif self.cfg_file.has_section(section) and self.cfg_file.options(section):
+            # 3. return config file value
+            custom_fields = dict(self.cfg_file[section])
+            return custom_fields
         else:
             # 4. if entry not found in config file
             return default

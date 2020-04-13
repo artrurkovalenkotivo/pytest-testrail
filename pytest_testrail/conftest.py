@@ -204,10 +204,10 @@ class ConfigManager(object):
             # 3. return config file value
             return self.cfg_file.getboolean(section, cfg_name) if is_bool else self.cfg_file.get(section, cfg_name)
 
-        elif self.cfg_file.has_section(section) and self.cfg_file.options(section):
-            # 3. return config file value
+        elif cfg_name == "custom_fields" and self.cfg_file.has_section(section) and self.cfg_file.options(section):
+            # 4. return all custom fields from testcase section
             custom_fields = dict(self.cfg_file[section])
             return custom_fields
         else:
-            # 4. if entry not found in config file
+            # 5. if entry not found in config file
             return default

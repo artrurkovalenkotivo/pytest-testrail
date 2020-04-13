@@ -23,5 +23,5 @@ setup(
         'requests>=2.20.0',
     ],
     include_package_data=True,
-    entry_points={'pytest11': ['pytes-_testrail = pytest_testrail.conftest']},
+    entry_points={'pytest11': ['pytes-testrail = pytest_testrail.conftest']},
 )

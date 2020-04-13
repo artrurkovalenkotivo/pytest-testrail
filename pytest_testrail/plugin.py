@@ -163,7 +163,6 @@ class PyTestRailPlugin(object):
         self.custom_fields = custom_fields
 
     # pytest hooks
-
     def pytest_report_header(self, config, startdir):
         """ Add extra-info in header """
         message = 'pytest-testrail: '
@@ -248,7 +247,6 @@ class PyTestRailPlugin(object):
                 print('[{}] Testruns to update: {}'.format(TESTRAIL_PREFIX, ', '.join([str(elt) for elt in testruns])))
                 for testrun_id in testruns:
                     self.add_results(testrun_id)
-                    self.publish_results(testrun_id)
             else:
                 print('[{}] No data published'.format(TESTRAIL_PREFIX))
 
@@ -259,7 +257,6 @@ class PyTestRailPlugin(object):
         print('[{}] End publishing'.format(TESTRAIL_PREFIX))
 
     # plugin
-
     def add_result(self, test_ids, status, comment='', defects=None, duration=0):
         """
         Add a new result to results dict to be submitted at the end.
@@ -279,6 +276,10 @@ class PyTestRailPlugin(object):
                 'defects': defects,
             }
             self.results.append(data)
+
+    def __converter(self, input, codepage):
+        # unicode converter for compatibility
+        return str(bytes(input, "utf-8"), codepage)
 
     def add_results(self, testrun_id):
         """
@@ -309,11 +310,6 @@ class PyTestRailPlugin(object):
         if self.include_all:
             print('[{}] Option "Include all testcases from test suite for test run" activated'.format(TESTRAIL_PREFIX))
 
-    def __converter(self, input, codepage):
-        # unicode converter for compatibility
-        return str(bytes(input, "utf-8"), codepage)
-
-    def publish_results(self, testrun_id):
         # Publish results
         data = {'results': []}
         for result in self.results:

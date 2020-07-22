@@ -28,6 +28,7 @@ TESTRAIL_DEFECTS_PREFIX = 'testrail_defects'
 ADD_RESULTS_URL = 'add_results_for_cases/{}'
 ADD_TESTRUN_URL = 'add_run/{}'
 CLOSE_TESTRUN_URL = 'close_run/{}'
+DELETE_TESTRUN_URL = 'delete_run/{}'
 CLOSE_TESTPLAN_URL = 'close_plan/{}'
 GET_TESTRUN_URL = 'get_run/{}'
 GET_TESTPLAN_URL = 'get_plan/{}'
@@ -254,6 +255,8 @@ class PyTestRailPlugin(object):
                 self.close_test_run(self.testrun_id)
             elif self.close_on_complete and self.testplan_id:
                 self.close_test_plan(self.testplan_id)
+        else:
+            self.delete_test_run(self.testrun_id)
         print('[{}] End publishing'.format(TESTRAIL_PREFIX))
 
     # plugin
@@ -308,7 +311,7 @@ class PyTestRailPlugin(object):
 
         # prompt enabling include all test cases from test suite when creating test run
         if self.include_all:
-            print('[{}] Option "Include all testcases from test suite for test run" activated'.format(TESTRAIL_PREFIX))
+            print('[{}]2un" activated'.format(TESTRAIL_PREFIX))
 
         # Publish results
         data = {'results': []}
@@ -431,6 +434,21 @@ class PyTestRailPlugin(object):
             print('[{}] Failed to close test plan: "{}"'.format(TESTRAIL_PREFIX, error))
         else:
             print('[{}] Test plan with ID={} was closed'.format(TESTRAIL_PREFIX, self.testplan_id))
+
+    def delete_test_run(self, testrun_id):
+        try:
+            response = self.client.send_post(
+                DELETE_TESTRUN_URL.format(testrun_id),
+                data={},
+                cert_check=self.cert_check
+            )
+        except Exception as er:
+            response = {}
+        error = self.client.get_error(response)
+        if error:
+            print('[{}] Failed to delete test run: "{}"'.format(TESTRAIL_PREFIX, error))
+        else:
+            print('[{}] Test run with ID={} was deleted because of empty test run'.format(TESTRAIL_PREFIX, testrun_id))
 
     def is_testrun_available(self):
         """

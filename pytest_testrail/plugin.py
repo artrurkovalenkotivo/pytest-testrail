@@ -311,7 +311,7 @@ class PyTestRailPlugin(object):
 
         # prompt enabling include all test cases from test suite when creating test run
         if self.include_all:
-            print('[{}]2un" activated'.format(TESTRAIL_PREFIX))
+            print('[{}] Option "Include all testcases from test suite for test run" activated'.format(TESTRAIL_PREFIX))
 
         # Publish results
         data = {'results': []}

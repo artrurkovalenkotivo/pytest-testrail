@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 import re
+import os
 import warnings
 from datetime import datetime
 from operator import itemgetter
@@ -149,6 +150,7 @@ class PyTestRailPlugin(object):
         self.client = client
         self.project_id = project_id
         self.results = []
+        self.tr_keys = []
         self.suite_id = suite_id
         self.include_all = include_all
         self.testrun_name = tr_name
@@ -178,7 +180,7 @@ class PyTestRailPlugin(object):
     @pytest.hookimpl(trylast=True)
     def pytest_collection_modifyitems(self, session, config, items):
         items_with_tr_keys = get_testrail_keys(items)
-        tr_keys = [case_id for item in items_with_tr_keys for case_id in item[1]]
+        self.tr_keys = [case_id for item in items_with_tr_keys for case_id in item[1]]
 
         if self.testplan_id and self.is_testplan_available():
             self.testrun_id = 0
@@ -192,20 +194,20 @@ class PyTestRailPlugin(object):
                     if not set(case_id).intersection(set(tests_list)):
                         mark = pytest.mark.skip('Test is not present in testrun.')
                         item.add_marker(mark)
-        else:
-            if self.testrun_name is None:
-                self.testrun_name = testrun_name()
-
-            self.create_test_run(
-                self.assign_user_id,
-                self.project_id,
-                self.suite_id,
-                self.include_all,
-                self.testrun_name,
-                tr_keys,
-                self.milestone_id,
-                self.testrun_description
-            )
+        # else:
+        #     if self.testrun_name is None:
+        #         self.testrun_name = testrun_name()
+        #
+        #     self.create_test_run(
+        #         self.assign_user_id,
+        #         self.project_id,
+        #         self.suite_id,
+        #         self.include_all,
+        #         self.testrun_name,
+        #         tr_keys,
+        #         self.milestone_id,
+        #         self.testrun_description
+        #     )
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
     def pytest_runtest_makereport(self, item, call):
@@ -237,7 +239,21 @@ class PyTestRailPlugin(object):
     def pytest_sessionfinish(self, session, exitstatus):
         """ Publish results in TestRail """
         print('[{}] Start publishing'.format(TESTRAIL_PREFIX))
+        self.testrun_description = self.testrun_description + os.environ.get("JOB_URL", "")
         if self.results:
+            if self.testrun_name is None:
+                self.testrun_name = testrun_name()
+
+            self.create_test_run(
+                self.assign_user_id,
+                self.project_id,
+                self.suite_id,
+                self.include_all,
+                self.testrun_name,
+                self.tr_keys,
+                self.milestone_id,
+                self.testrun_description
+            )
             tests_list = [str(result['case_id']) for result in self.results]
             print('[{}] Testcases to publish: {}'.format(TESTRAIL_PREFIX, ', '.join(tests_list)))
 
@@ -256,7 +272,7 @@ class PyTestRailPlugin(object):
             elif self.close_on_complete and self.testplan_id:
                 self.close_test_plan(self.testplan_id)
         else:
-            self.delete_test_run(self.testrun_id)
+            print('[{}] No results to publish'.format(TESTRAIL_PREFIX))
         print('[{}] End publishing'.format(TESTRAIL_PREFIX))
 
     # plugin

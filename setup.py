@@ -10,7 +10,7 @@ setup(
     name='pytest-testrail',
     description='pytest plugin for creating TestRail runs and adding results',
     long_description=read_file('README.rst'),
-    version='2.8.7',
+    version='2.8.8',
     author='UTAF',
     author_email='UTAF',
     url='https://github.com/artrurkovalenkotivo/pytest-testrail/',

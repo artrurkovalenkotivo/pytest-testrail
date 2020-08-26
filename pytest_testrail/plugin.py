@@ -239,7 +239,7 @@ class PyTestRailPlugin(object):
     def pytest_sessionfinish(self, session, exitstatus):
         """ Publish results in TestRail """
         print('[{}] Start publishing'.format(TESTRAIL_PREFIX))
-        self.testrun_description = self.testrun_description + os.environ.get("JOB_URL", "")
+        self.testrun_description = self.testrun_description + os.environ.get("BUILD_URL", "")
         if self.results:
             if self.testrun_name is None:
                 self.testrun_name = testrun_name()
